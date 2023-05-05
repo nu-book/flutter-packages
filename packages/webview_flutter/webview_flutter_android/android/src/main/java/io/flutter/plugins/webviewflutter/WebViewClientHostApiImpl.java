@@ -11,6 +11,7 @@ import android.os.Build;
 import android.view.KeyEvent;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import androidx.annotation.NonNull;
@@ -29,19 +30,25 @@ public class WebViewClientHostApiImpl implements GeneratedAndroidWebView.WebView
   private final WebViewClientCreator webViewClientCreator;
   private final WebViewClientFlutterApiImpl flutterApi;
 
+  public interface WebRequestInterceptor {
+    WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request);
+  }
+
   /** Implementation of {@link WebViewClient} that passes arguments of callback methods to Dart. */
   @RequiresApi(Build.VERSION_CODES.N)
   public static class WebViewClientImpl extends WebViewClient {
     private final WebViewClientFlutterApiImpl flutterApi;
     private boolean returnValueForShouldOverrideUrlLoading = false;
+    private WebRequestInterceptor requestInterceptor;
 
     /**
      * Creates a {@link WebViewClient} that passes arguments of callbacks methods to Dart.
      *
      * @param flutterApi handles sending messages to Dart
      */
-    public WebViewClientImpl(@NonNull WebViewClientFlutterApiImpl flutterApi) {
+    public WebViewClientImpl(@NonNull WebViewClientFlutterApiImpl flutterApi, WebRequestInterceptor requestInterceptor) {
       this.flutterApi = flutterApi;
+      this.requestInterceptor = requestInterceptor;
     }
 
     @Override
@@ -90,6 +97,11 @@ public class WebViewClientHostApiImpl implements GeneratedAndroidWebView.WebView
     }
 
     @Override
+    public WebResourceResponse shouldInterceptRequest (@NonNull WebView view, @NonNull WebResourceRequest request) {
+      return requestInterceptor != null ? requestInterceptor.shouldInterceptRequest(view, request) : null;
+    }
+    
+    @Override
     public void doUpdateVisitedHistory(
         @NonNull WebView view, @NonNull String url, boolean isReload) {
       flutterApi.doUpdateVisitedHistory(this, view, url, isReload, reply -> {});
@@ -115,9 +127,11 @@ public class WebViewClientHostApiImpl implements GeneratedAndroidWebView.WebView
   public static class WebViewClientCompatImpl extends WebViewClientCompat {
     private final WebViewClientFlutterApiImpl flutterApi;
     private boolean returnValueForShouldOverrideUrlLoading = false;
+    private WebRequestInterceptor requestInterceptor;
 
-    public WebViewClientCompatImpl(@NonNull WebViewClientFlutterApiImpl flutterApi) {
+    public WebViewClientCompatImpl(@NonNull WebViewClientFlutterApiImpl flutterApi, WebRequestInterceptor requestInterceptor) {
       this.flutterApi = flutterApi;
+      this.requestInterceptor = requestInterceptor;
     }
 
     @Override
@@ -170,6 +184,10 @@ public class WebViewClientHostApiImpl implements GeneratedAndroidWebView.WebView
       return returnValueForShouldOverrideUrlLoading;
     }
 
+    public WebResourceResponse shouldInterceptRequest (@NonNull WebView view, @NonNull WebResourceRequest request) {
+      return requestInterceptor != null ? requestInterceptor.shouldInterceptRequest(view, request) : null;
+    }
+
     @Override
     public void doUpdateVisitedHistory(
         @NonNull WebView view, @NonNull String url, boolean isReload) {
@@ -191,6 +209,17 @@ public class WebViewClientHostApiImpl implements GeneratedAndroidWebView.WebView
 
   /** Handles creating {@link WebViewClient}s for a {@link WebViewClientHostApiImpl}. */
   public static class WebViewClientCreator {
+    
+    private WebRequestInterceptor requestInterceptor;
+    
+    public WebRequestInterceptor getRequestInterceptor() {
+        return requestInterceptor;
+    }
+    
+    public void setRequestInterceptor(WebRequestInterceptor interceptor) {
+        requestInterceptor = interceptor;
+    }
+    
     /**
      * Creates a {@link WebViewClient}.
      *
@@ -208,9 +237,9 @@ public class WebViewClientHostApiImpl implements GeneratedAndroidWebView.WebView
       // to bug https://bugs.chromium.org/p/chromium/issues/detail?id=925887. Also, see
       // https://github.com/flutter/flutter/issues/29446.
       if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-        return new WebViewClientImpl(flutterApi);
+        return new WebViewClientImpl(flutterApi, requestInterceptor);
       } else {
-        return new WebViewClientCompatImpl(flutterApi);
+        return new WebViewClientCompatImpl(flutterApi, requestInterceptor);
       }
     }
   }

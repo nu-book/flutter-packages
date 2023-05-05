@@ -23,15 +23,45 @@
 @property(nonatomic, weak) FWFInstanceManager *instanceManager;
 
 - (instancetype)initWithManager:(FWFInstanceManager *)manager;
+- (NSDictionary<NSString*, id<WKURLSchemeHandler>>*)schemeHandlers;
++ (FWFWebViewFactory*)currentInstance;
 @end
 
-@implementation FWFWebViewFactory
+@implementation FWFWebViewFactory {
+  NSMutableDictionary<NSString*, id<WKURLSchemeHandler>>* _schemeHandlers;
+}
+
+@interface FWFWebViewFactoryInstance : NSObject
+@property (weak, nonatomic) FWFWebViewFactory *factory;
++ (instancetype)sharedInstance;
+@end
+@implementation FWFWebViewFactoryInstance
++ (instancetype)sharedInstance {
+    static FWFWebViewFactoryInstance *sInstance = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        sInstance = [[FWFWebViewFactoryInstance alloc] init];
+    });
+    return sInstance;
+}
+@end
+
++ (FWFWebViewFactory*)currentInstance {
+  return [FWFWebViewFactoryInstance sharedInstance].factory;
+}
+
 - (instancetype)initWithManager:(FWFInstanceManager *)manager {
   self = [self init];
   if (self) {
     _instanceManager = manager;
+    _schemeHandlers = [NSMutableDictionary dictionary];
+	[FWFWebViewFactoryInstance sharedInstance].factory = self;
   }
   return self;
+}
+
+- (NSDictionary<NSString*, id<WKURLSchemeHandler>>*)schemeHandlers {
+    return _schemeHandlers;
 }
 
 - (NSObject<FlutterMessageCodec> *)createArgsCodec {
@@ -46,6 +76,10 @@
       (FWFWebView *)[self.instanceManager instanceForIdentifier:identifier.longValue];
   webView.frame = frame;
   return webView;
+}
+
+- (void)setHandler:(id<WKURLSchemeHandler>)handler forURLScheme:(NSString*)urlScheme {
+  _schemeHandlers[urlScheme] = handler;
 }
 
 @end
@@ -94,10 +128,14 @@
   FWFWKWebsiteDataStoreHostApiSetup(
       registrar.messenger,
       [[FWFWebsiteDataStoreHostApiImpl alloc] initWithInstanceManager:instanceManager]);
+
+  FWFWebViewFactory *webviewFactory = [[FWFWebViewFactory alloc] initWithManager:instanceManager];
+
   FWFWKWebViewConfigurationHostApiSetup(
       registrar.messenger,
       [[FWFWebViewConfigurationHostApiImpl alloc] initWithBinaryMessenger:registrar.messenger
-                                                          instanceManager:instanceManager]);
+                                                          instanceManager:instanceManager
+                                                           schemeHandlers:webviewFactory.schemeHandlers]);
   FWFWKWebViewHostApiSetup(registrar.messenger, [[FWFWebViewHostApiImpl alloc]
                                                     initWithBinaryMessenger:registrar.messenger
                                                             instanceManager:instanceManager]);
@@ -105,7 +143,6 @@
                        [[FWFURLHostApiImpl alloc] initWithBinaryMessenger:registrar.messenger
                                                           instanceManager:instanceManager]);
 
-  FWFWebViewFactory *webviewFactory = [[FWFWebViewFactory alloc] initWithManager:instanceManager];
   [registrar registerViewFactory:webviewFactory withId:@"plugins.flutter.io/webview"];
 
   // InstanceManager is published so that a strong reference is maintained.
