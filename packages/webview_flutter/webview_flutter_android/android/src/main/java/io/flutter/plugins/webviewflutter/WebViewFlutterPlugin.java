@@ -40,6 +40,7 @@ public class WebViewFlutterPlugin implements FlutterPlugin, ActivityAware {
   private FlutterPluginBinding pluginBinding;
   private WebViewHostApiImpl webViewHostApi;
   private JavaScriptChannelHostApiImpl javaScriptChannelHostApi;
+  private WebViewClientHostApiImpl.WebViewClientCreator webViewClientCreator;
 
   /**
    * Add an instance of this to {@link io.flutter.embedding.engine.plugins.PluginRegistry} to
@@ -54,6 +55,8 @@ public class WebViewFlutterPlugin implements FlutterPlugin, ActivityAware {
    * GeneratedPluginRegistrant. https://github.com/flutter/flutter/issues/42694
    */
   public WebViewFlutterPlugin() {}
+
+  public WebViewClientHostApiImpl.WebViewClientCreator getWebViewClientCreator() { return webViewClientCreator; }
 
   /**
    * Registers a plugin implementation that uses the stable {@code io.flutter.plugin.common}
@@ -107,7 +110,7 @@ public class WebViewFlutterPlugin implements FlutterPlugin, ActivityAware {
         binaryMessenger,
         new WebViewClientHostApiImpl(
             instanceManager,
-            new WebViewClientHostApiImpl.WebViewClientCreator(),
+            webViewClientCreator = new WebViewClientHostApiImpl.WebViewClientCreator(),
             new WebViewClientFlutterApiImpl(binaryMessenger, instanceManager)));
     WebChromeClientHostApi.setup(
         binaryMessenger,
